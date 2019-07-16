@@ -1,0 +1,32 @@
+fnSetUser = function (columnLableToFetch, columnLabelToBind) {
+	var selectedUsers = $(".ms-standardheader nobr:contains('" + columnLableToFetch + "')").closest("tr").find(".ms-entity-resolved");
+	var users = '';
+	if (selectedUsers.length > 0) {
+		$.each(selectedUsers, function (i, user) {
+			ExecuteOrDelayUntilScriptLoaded(function () {
+				setTimeout(function () {
+					users = user.id;
+					SetAndResolvePeoplePicker(columnLabelToBind, users);
+				}, 2000);
+			}, 'clientpeoplepicker.js');
+		});
+	}
+
+}
+
+function SetAndResolvePeoplePicker(fieldName, userAccountName) {
+	//alert(userAccountName);  
+	var _PeoplePicker = $("div[id*='" + fieldName + "']");
+	var _PeoplePickerTopId = _PeoplePicker.attr('id');
+
+	var _PeoplePickerEditer = $("input[id*='" + fieldName + "']");
+
+	userAccountName.split(";#").forEach(function (part) {
+		if (part !== "" && part !== null) {
+			_PeoplePickerEditer.val(part);
+			var _PeoplePickerOject = SPClientPeoplePicker.SPClientPeoplePickerDict[_PeoplePickerTopId];
+			_PeoplePickerOject.AddUnresolvedUserFromEditor(true);
+		}
+	});
+
+}
