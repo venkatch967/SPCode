@@ -1,0 +1,340 @@
+var app = angular.module("myApp", ['ngRoute']);
+app.config(function ($routeProvider) {
+	$routeProvider
+		.when("/", {
+			templateUrl: "../SiteAssets/Views/templates/AllContracts.html",
+			controller: 'allContractsController'
+		})
+		.when("/RejectedContracts", {
+			templateUrl: "../SiteAssets/Views/templates/RejectedContracts.html",
+			controller: 'rejectController',
+		})
+		.when("/MyAssignedContracts", {
+			templateUrl: "../SiteAssets/Views/templates/MyAssignedTasks.html",
+			controller: 'mytaskController1',
+		})
+		.when("/InProgressContracts", {
+			templateUrl: "../SiteAssets/Views/templates/InProgress.html",
+			controller: 'inprogressController',
+		})
+		.when("/DraftContracts", {
+			templateUrl: "../SiteAssets/Views/templates/Draft.html",
+			controller: 'draftController',
+		})
+		.when("/CompletedContracts", {
+			templateUrl: "../SiteAssets/Views/templates/CompletedContracts.html",
+			controller: 'completedController',
+		});
+});
+
+/*var siteUrl = {
+		url: _spPageContextInfo.webAbsoluteUrl;
+}*/
+
+
+app.controller("allContractsController", function ($scope) {
+	debugger;
+	var userGroupUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/sitegroups/getByName('CMS_SA_Admin')/Users?$filter=Id eq " + _spPageContextInfo.userId;
+
+	GetListItems($scope, userGroupUrl).done(function (data) {
+		console.log(data.d.results);
+		if (data.d.results.length > 0) {
+			var endPointUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/GetByTitle('Contracts')/items?$select=ID,CurrentApprover,Title,ContractName,ContractStatus,Effectiveperiodfrom,EffectivePeriodTo,ContractOwner/Title,TotalContractValue,Author/Title,Currency/Title&$expand=Author,Currency,ContractOwner&$orderby=ID desc";
+			///_api/web/lists/GetByTitle('Contracts')/items?$select=*,Author/Title,Currency/Title&$expand=Author,Currency
+			GetListItems($scope, endPointUrl).done(function (res) {
+				console.log(res.d.results);
+				$scope.items = res.d.results;
+			}).fail(function (sender, args) {
+				console.log(sender.ResponseText);
+			})
+		}
+		//alert('User Existed')
+		//$scope.items = data.d.results;          
+	}).fail(function (data) {
+		console.log(JSON.stringify(data.message));
+	})
+
+});
+
+app.controller("inprogressController", function ($scope) {
+	var endPointUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/GetByTitle('Contracts')/items?$select=ID,Title,CurrentApprover,ContractName,ContractStatus,Effectiveperiodfrom,EffectivePeriodTo,ContractOwner/Title,TotalContractValue,Author/Title,Currency/Title&$expand=Author,Currency,ContractOwner&$filter=ContractStatus eq 'In Progress' &$orderby=ID desc";
+	GetListItems($scope, endPointUrl).done(function (data) {
+		console.log(data.d.results);
+		$scope.inprogressItems = data.d.results;
+	}).fail(function (sender, args) {
+		console.log(args.get_message());
+	})
+
+});
+
+app.controller("draftController", function ($scope) {
+	var endPointUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/GetByTitle('Contracts')/items?$select=ID,Title,ContractName,ContractStatus,Effectiveperiodfrom,EffectivePeriodTo,ContractOwner/Title,TotalContractValue,Author/Title,Currency/Title&$expand=Author,Currency,ContractOwner&$filter=ContractStatus eq 'Draft' &$orderby=ID desc";
+	var user_Url = _spPageContextInfo.webAbsoluteUrl + "/_api/web/currentuser?$select=Title";
+	GetListItems($scope, user_Url).done(function (suser) {
+		$scope.loggedInUser = suser.d.Title;
+		GetListItems($scope, endPointUrl).done(function (data) {
+			console.log(data.d.results);
+			$scope.draftContracts = data.d.results;
+		}).fail(function (sender, args) {
+			console.log(args.get_message());
+		})
+	}).fail(function (fuser) {
+
+	})
+
+
+});
+
+//Backup
+// app.controller("draftController", function ($scope) {
+// 	var endPointUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/GetByTitle('Contracts')/items?$select=ID,Title,ContractName,ContractStatus,Effectiveperiodfrom,EffectivePeriodTo,ContractOwner/Title,TotalContractValue,Author/Title,Currency/Title&$expand=Author,Currency,ContractOwner&$filter=ContractStatus eq 'Draft' &$orderby=ID desc";
+// 	GetListItems($scope, endPointUrl).done(function (data) {
+// 		console.log(data.d.results);
+// 		$scope.draftContracts = data.d.results;
+// 	}).fail(function (sender, args) {
+// 		console.log(args.get_message());
+// 	})
+
+// });
+
+app.controller("rejectController", function ($scope) {
+	var endPointUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/GetByTitle('Contracts')/items?$select=ID,Title,CurrentApprover,ContractName,ContractStatus,Effectiveperiodfrom,EffectivePeriodTo,ContractOwner/Title,TotalContractValue,Author/Title,Currency/Title&$expand=Author,Currency,ContractOwner&$filter=ContractStatus eq 'Rejected' &$orderby=ID desc";
+	var user_Url = _spPageContextInfo.webAbsoluteUrl + "/_api/web/currentuser?$select=Title";
+	GetListItems($scope, user_Url).done(function (suser) {
+		$scope.loggedInUser = suser.d.Title;
+		GetListItems($scope, endPointUrl).done(function (data) {
+			console.log("rejected Items" + data.d.results);
+			$scope.rejectedContracts = data.d.results;
+		}).fail(function (sender, args) {
+			console.log(args.get_message());
+		})
+	}).fail(function (fuser) {
+		console.log(fuser.message);
+	})
+
+
+});
+
+app.controller("completedController", function ($scope) {
+	var endPointUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/GetByTitle('Contracts')/items?$select=ID,Title,CurrentApprover,ContractName,ContractStatus,Effectiveperiodfrom,EffectivePeriodTo,ContractOwner/Title,TotalContractValue,Author/Title,Currency/Title&$expand=Author,Currency,ContractOwner&$filter=ContractStatus eq 'Completed' &$orderby=ID desc";
+	GetListItems($scope, endPointUrl).done(function (data) {
+		console.log("Completed Items" + data.d.results);
+		$scope.completedContracts = data.d.results;
+	}).fail(function (sender, args) {
+		console.log(args.get_message());
+	})
+
+});
+
+
+
+
+app.controller("mytaskController", function ($scope) {
+	debugger;
+	$scope.contracts = [];
+	$scope.approversData = [];
+	$scope.currentLoggedInUser;
+	$scope.filteredContracts = [];
+	//$scope.loggedInUserApprovalItems='';
+
+	var currentLoggedInuserUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/currentuser?$select=Title";
+	GetListItems($scope, currentLoggedInuserUrl).done(function (loggedInUser) {
+		$scope.currentLoggedInUser = loggedInUser.d.Title;
+
+		//get all inprogress contracts
+		var getContractsUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/GetByTitle('Contracts')/items?$select=ID,Title,ContractName,CurrentApprover,ContractStatus,Effectiveperiodfrom,EffectivePeriodTo,ContractOwner/Title,TotalContractValue,Author/Title,Currency/Title&$expand=Author,Currency,ContractOwner&$filter=ContractStatus eq 'In Progress' &$orderby=ID desc";
+		GetListItems($scope, getContractsUrl).done(function (allContracts) {
+			if (allContracts.d.results.length > 0) {
+				//$scope.loggedInUserApprovalItems=allContracts.d.results
+				$.each(allContracts.d.results, function (i, eachContract) {
+					//Query List of unit approvers based on each current approval ID
+					var getLouApproversURL = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/GetByTitle('List Of Units and Approvers')/items?$select=*,ResponsibleApprover/Title&$expand=ResponsibleApprover&$filter=ID eq '" + eachContract.CurrentApprovalListOfUnit + "'";
+
+					GetListItems($scope, getLouApproversURL).done(function (louItems) {
+						if (louItems.d.results.length > 0) {
+							$.each(louItems.d.results, function (j, eachLou) {
+								if (eachLou.Id == eachContract.CurrentApprovalListOfUnit) {
+									if (eachLou.ResponsibleApprover.results.length > 0) {
+										$.each(eachLou.ResponsibleApprover.results, function (k, eachAppr) {
+											if (eachAppr.Title == $scope.currentLoggedInUser) {
+												$scope.filteredContracts.push(eachContract);
+											}
+										})
+									}
+								}
+							})
+
+							/*if(eachContract.CurrentApprovalListOfUnit==louItems.d.Id){
+								if(louItems.ResponsibleApprover.results.length>0){
+									$.each(louItems.d.resultsResponsibleApprover.results,function(j,RspAppr){
+										if(RspAppr.Title==$scope.currentLoggedInUser){
+											$scope.loggedInUserApprovalItems=eachContract;
+										}
+									})
+								}
+							}*/
+						}
+						$scope.loggedInUserApprovalItems = $scope.filteredContracts;
+					}).fail(function (error) {
+						console.log(Json.Stringfy(error.message));
+					})
+
+
+				})
+			}
+		}).fail(function (error) {
+			console.log(Json.Stringfy(error.message));
+		})
+
+
+
+	}).fail(function (error) {
+		console.log(Json.Stringfy(error.message));
+	})
+
+
+});
+
+
+app.controller("mytaskControllerNew", function ($scope) {
+	debugger;
+
+	$scope.contracts = '';
+	$scope.approversData = [];
+	$scope.currentLoggedInUser;
+	$scope.filteredContracts = [];
+	$scope.approvers = '';
+	//$scope.loggedInUserApprovalItems='';
+
+	var currentLoggedInuserUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/currentuser?$select=Title";
+	var getContractsUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/GetByTitle('Contracts')/items?$select=ID,Title,CurrentApprover,ContractName,ContractStatus,Effectiveperiodfrom,EffectivePeriodTo,ContractOwner/Title,TotalContractValue,Author/Title,Currency/Title&$expand=Author,Currency,ContractOwner&$filter=ContractStatus eq 'In Progress' &$orderby=ID desc";
+	///_api/web/lists/GetByTitle('Contracts')/items?$select=*,Author/Title,Currency/Title&$expand=Author,Currency&$filter=ContractStatus eq 'In Progress'"
+
+	///_api/web/lists/GetByTitle('Contracts')/items?$select=ID,Title,CurrentApprover,ContractName,ContractStatus,Effectiveperiodfrom,EffectivePeriodTo,ContractOwner/Title,TotalContractValue,Author/Title,Currency/Title&$expand=Author,Currency,ContractOwner&$filter=ContractStatus eq 'Completed' &$orderby=ID desc"
+
+	GetListItems($scope, currentLoggedInuserUrl).done(function (loggedInUser) {
+		$scope.currentLoggedInUser = loggedInUser.d.Title;
+		$scope.currentLoggedInUser = 'Saga, Koti Bala Sai Teja (623-Extern)';
+
+		var getLouApproversURL = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/GetByTitle('List Of Units and Approvers')/items?$select=*,ResponsibleApprover/Title&$expand=ResponsibleApprover&$filter=ResponsibleApprover/Title eq '" + $scope.currentLoggedInUser + "'";
+		//get all inprogress contracts
+
+		GetListItems($scope, getContractsUrl).done(function (allContracts) {
+			if (allContracts.d.results.length > 0) {
+				//$scope.loggedInUserApprovalItems=allContracts.d.results
+				$scope.contracts = allContracts.d.results;
+
+				GetListItems($scope, getLouApproversURL).done(function (louItems) {
+					if (louItems.d.results.length > 0) {
+						$scope.approvers = louItems.d.results;
+						$scope.loggedInUserApprovalItems = fnGetItemsForCurrentUser($scope.contracts, $scope.approvers, $scope.currentLoggedInUser);
+					}
+				}).fail(function (error) {
+					console.log(Json.Stringfy(error.message));
+				})
+			}
+		}).fail(function (error) {
+			console.log(Json.Stringfy(error.message));
+		})
+
+
+
+	}).fail(function (error) {
+		console.log(Json.Stringfy(error.message));
+	})
+
+
+});
+
+
+app.controller("mytaskController1", function ($scope) {
+	debugger;
+
+	$scope.contracts = '';
+	$scope.approversData = [];
+	$scope.currentLoggedInUser;
+	$scope.filteredContracts = [];
+	$scope.approvers = '';
+	$scope.loggedInUserApprovalItems = '';
+
+	var currentLoggedInuserUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/currentuser?$select=Title";
+	var getContractsUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/GetByTitle('Contracts')/items?$select=ID,Title,CurrentApprover,ContractName,ContractStatus,Effectiveperiodfrom,EffectivePeriodTo,ContractOwner/Title,TotalContractValue,Author/Title,Currency/Title&$expand=Author,Currency,ContractOwner&$filter=ContractStatus eq 'In Progress' &$orderby=ID desc";
+
+
+	GetListItems($scope, currentLoggedInuserUrl).done(function (loggedInUser) {
+		$scope.currentLoggedInUser = loggedInUser.d.Title;
+		// $scope.currentLoggedInUser = 'Saga, Koti Bala Sai Teja (623-Extern)';
+
+		//var getLouApproversURL = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/GetByTitle('List Of Units and Approvers')/items?$select=*,ResponsibleApprover/Title&$expand=ResponsibleApprover&$filter=ResponsibleApprover/Title eq '" + $scope.currentLoggedInUser + "'";
+		//get all inprogress contracts
+
+		GetListItems($scope, getContractsUrl).done(function (allContracts) {
+			if (allContracts.d.results.length > 0) {
+				//$scope.loggedInUserApprovalItems=allContracts.d.results
+				$scope.contracts = allContracts.d.results;
+				$.each($scope.contracts, function (i, j) {
+					if (j.CurrentApprover != "" && j.CurrentApprover != undefined && j.CurrentApprover != null) {
+						if (j.CurrentApprover == $scope.currentLoggedInUser) {
+							//alert(j.Title);
+							$scope.filteredContracts.push(j)
+						}
+					}
+				})
+				$scope.loggedInUserApprovalItems = $scope.filteredContracts;
+
+
+			}
+		}).fail(function (error) {
+			console.log(Json.Stringfy(error.message));
+		})
+
+
+
+	}).fail(function (error) {
+		console.log(Json.Stringfy(error.message));
+	})
+
+
+});
+
+fnGetItemsForCurrentUser = function (contracts, approvers, currentLoggedInUser) {
+
+	filteredContracts = [];
+
+	$.each(contracts, function (i, c) {
+		if (c.CurrentApprovalListOfUnit != null && c.CurrentApprovalListOfUnit != '') {
+			$.each(approvers, function (j, a) {
+				if (c.CurrentApprovalListOfUnit == a.Id) {
+					if (a.ResponsibleApprover.results.length > 0) {
+						$.each(a.ResponsibleApprover.results, function (k, appr) {
+							if (appr.Title == currentLoggedInUser)
+								filteredContracts.push(c);
+
+						})
+					}
+				}
+			})
+			//$scope.loggedInUserApprovalItems=filteredContracts;
+		}
+		/*else{
+					//alert('No Contracts Found')
+					if(c.IsSignature1Approved=='No'&&c.IsSignature2Approved="No"){
+						filteredContracts.push(c)
+					}else if(c.IsSignature1Approved=='Yes'&&c.IsSignature2Approved="No"){
+						filteredContracts.push(c)
+					}
+				}*/
+	})
+	return filteredContracts;
+}
+
+function GetListItems($scope, endPointUrl) {
+	return $.ajax({
+		url: endPointUrl,
+		method: "GET",
+		async: false,
+		headers: {
+			"Accept": "application/json;odata=verbose"
+		}
+	});
+}
