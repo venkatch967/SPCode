@@ -1,0 +1,1823 @@
+var seledIGuestId = [];
+var seledIGuestId1 = [];
+var unitMultiSelect = [];
+$(document).ready(function () {
+	//$.blockUI({ message: '<img src="/sites/06990/SiteAssets/SA/CMS-SA/img/Rolling.gif" width="100px" height="100px" /><br> <h4>Loading.... Please wait</h4>' });
+	initilizeVariable();
+	fnGetCurrentItemData();
+	fnaddClassToControls();
+	fnSetValuesOnLoad();
+	//setTimeout(function(){  $.unblockUI(); }, 3000);
+
+});
+
+$(document).ready(attachEventHandlers);
+
+function attachEventHandlers() {
+	// override the default event handler with our custom method
+	$('#attachOKbutton').attr("onclick", "onAttachOKbuttonClicked()");
+}
+
+function onAttachOKbuttonClicked() {
+	// get the name of the file last attached to the item
+	var newFilePath = $('#attachmentsOnClient').find('input').last().val();
+	var newFileName = TrimWhiteSpaces(newFilePath).replace(/^.*[\\\/]/, '');
+
+	var foundDuplication = false;
+
+	$('#idAttachmentsTable').find('tbody').find('tr').each(function () {
+		var existingFileName = $(this).find('.ms-vb').find('a').text();
+		// if the existingFileName is empty then the attachment was uploaded in this session
+		// that is, it is not saved yet
+		if (existingFileName == '') {
+			var existingFilePath = $(this).find('.ms-vb').find('span').text();
+			existingFileName = existingFilePath.replace(/^.*[\\\/]/, '');
+		}
+
+		if (newFileName == existingFileName) {
+			foundDuplication = true;
+			return false;
+		}
+	});
+
+	if (foundDuplication) {
+		alert("A file with name '" + newFileName + "' is already attached to this item.");
+	} else {
+		// call the OkAttach js method of SharePoint
+		// this is the method that is originally called by uploading attachments
+		OkAttach();
+	}
+}
+
+initilizeVariable = function () {
+	eventId = '';
+	ApprvrLbl1 = '';
+	ApprvrLbl2 = '';
+	currentItemData = [];
+	homepageurl = _spPageContextInfo.webAbsoluteUrl + '/SitePages/SA-Home.aspx'
+	DOAList = 'Delegation of Authority';
+	loggedInUser = '';
+	//https://conf.sp.wp.corpintra.net/sites/06966/SitePages/SA-Home.asp
+}
+
+fnaddClassToControls = function () {
+	try {
+		$("#contractownercustom").addClass('form-control');
+		$("#fromdate").addClass('form-control');
+		$("#todate").addClass('form-control');
+		$('input[type="text"][title="Contract Number"]').addClass('form-control').attr('contenteditable', false).css('background-color', '#d3d3d3');
+		$('input[type="text"][title="Contract Name"]').addClass('form-control');
+		$('input[type="text"][title="Total Contract Value"]').addClass('form-control');
+		$('select[title="Currency"]').addClass('form-control');
+		$('select[title="Contract Status"]').addClass('form-control').attr('disabled', 'disabled').css('background-color', '#d3d3d3');
+
+		$('input[type="text"][title="OtherBU"]').addClass('form-control');
+		$('input[type="text"][title="Other Contract Party"]').addClass('form-control');
+		$('input[type="text"][title="OtherContractType"]').addClass('form-control');
+		$('input[type="text"][title="Signature1Label"]').addClass('form-control');
+		$('input[type="text"][title="Signature2Label"]').addClass('form-control');
+		$('input[type="text"][title="OtherSubject"]').addClass('form-control');
+
+		$('select[title="Department"]').addClass('form-control');
+		$('select[title="ContractType"]').addClass('form-control');
+		$('select[title="BusinessUnit"]').addClass('form-control');
+		$('select[title="ContractParty"]').addClass('form-control');
+		$('div[title="Signature1Approver"]').addClass('form-control');
+		$('select[title="Contract Party possible values"]').addClass('form-control');
+		$('textarea[title="Contract Desciption"]').addClass('form-control');
+		$('input[type="button"][id$="diidIOSaveItem"]').val("Submit for Approval").addClass('btn btn-primary').css({
+			"background-color": '#337ab7 !important',
+			'color': '#FFF !important'
+		});
+		$('input[type="button"][id$="diidIOGoBack"]').addClass('btn btn-primary').css({
+			"background-color": '#337ab7 !important',
+			'color': '#FFF !important'
+		});
+		$("#draft").css({
+			"background-color": '#337ab7 !important',
+			'color': '#FFF !important'
+		});
+		$("#idAttachmentsRow").find('td.ms-formlabel').css({
+			'padding-left': '3%',
+			'font-weight': 'bold',
+			'width': '10% !important'
+		});
+		//
+		//$("div[id='peoplepicker_TopSpan']").addClass('form-control');
+		//$("#contractownercustom")
+
+	} catch (ex) {
+		console.log('Error ' + ex.message + ' found in addClassToControls function');
+	}
+}
+
+fnSetValuesOnLoad = function () {
+	getLoggedInUser();
+	fnBtnClick();
+	fnHideBtnsBasedOnStatus();
+	fnSetContractOwner();
+	fnEnableDisableOtherContractPartyField();
+	fnEnableDisableOtherBUField();
+	bindDatepicker();
+	allowNumericOnly();
+	fnEnableDisableOtherContractType();
+	fnAppendCntrctTypeOptionsBasedOnBU();
+	fnAppendSubjectOptionsBasedOnContractType();
+	fnEnableDisableOtherSubject();
+	fnbindListOfUnits();
+	fnRemoveValidation();
+	fnSetApprovers();
+	fnSetUser("Signature1Approver", "peoplepicker_TopSpan");
+	fnSetUser("Signature2Approver", "peoplepicker1_TopSpan");
+
+}
+
+
+getLoggedInUser = function () {
+	try {
+		var enpointUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/currentuser?$select=Title";
+		fnGetData(enpointUrl).done(function (data) {
+			loggedInUser = data.d.Title;
+		}).fail(function () {
+			console.log('Error found in btnClick function')
+		})
+	} catch (ex) {
+		console.log('Error ' + ex.message + ' found in getLoggedInUser function');
+	}
+}
+
+fnGetCurrentItemData = function () {
+	try {
+		var currentItemId = fnGetParameterValues("ID");
+		var itemUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/getbytitle('Contracts')/items('" + currentItemId + "')?$select=*,ContractParty/Title,Author/Title,Signature1Approver/Title,Signature2Approver/Title&$expand=ContractParty,Author,Signature1Approver,Signature2Approver";
+		fnGetData(itemUrl).done(function (data) {
+			if (data.d) {
+				currentItemData.push(data.d)
+			}
+
+		}).fail(function () {
+			console.log('Error found in btnClick function')
+		})
+
+
+	} catch (ex) {
+		console.log('Error occoured in fnGetCurrentItemData')
+	}
+}
+
+fnSetContractOwner = function () {
+	try {
+		var currentItemId = fnGetParameterValues("ID");
+		var endPointUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/getbytitle('Contracts')/items('" + currentItemId + "')?$select=*,Author/Title,Signature1Approver/Title,Signature2Approver/Title&$expand=Author,Signature1Approver,Signature2Approver";
+
+		fnGetData(endPointUrl).done(function (data) {
+
+			$("#contractownercustom").val(data.d.Author.Title);
+			$("#contractownercustom").attr('contenteditable', false).css('background-color', '#d3d3d3');
+			$("#todate").val(fnconvertandFormatDate(data.d.EffectivePeriodTo));
+			$("#fromdate").val(fnconvertandFormatDate(data.d.Effectiveperiodfrom));
+		}).fail(function () {
+			console.log('Error found in btnClick function')
+		})
+	} catch (ex) {
+		console.log('Error ' + ex.message + ' found in fnSetFieldValues function');
+	}
+}
+
+fnHideBtnsBasedOnStatus = function () {
+	try {
+		var contractStatus = currentItemData[0].ContractStatus;
+		if (contractStatus != null && contractStatus != undefined && contractStatus != "") {
+			if (contractStatus == 'Draft' || contractStatus == 'In Progress') {
+				$('#btnsubmit').show();
+				$("#btnResubmit").hide();
+			} else if (contractStatus == 'Rejected') {
+				$('#btnsubmit').hide();
+				$("#btnResubmit").show();
+			}
+		}
+
+	} catch (e) {
+		console.log('Error ' + e.message + ' found in fnSetFieldValues function');
+	}
+}
+
+fnEnableDisableOtherContractPartyField = function () {
+	if ($('select[title="ContractParty"] option:selected').text() == 'Other Contract Party')
+		$("#otherCntrctParty").show();
+
+	else {
+		$("#otherCntrctParty").val('');
+		$("#otherCntrctParty").hide();
+	}
+
+	$('select[title="ContractParty"]').on('change', function () {
+		var selectedCP = $('select[title="ContractParty"] option:selected').text();
+
+		if (selectedCP == 'Other Contract Party')
+			$("#otherCntrctParty").show();
+		else {
+			$("#otherCntrctParty").hide();
+			$("input[title='Other Contract Party']").val('');
+
+		}
+
+	});
+}
+
+bindDatepicker = function () {
+	try {
+		$("#fromdate").datepicker();
+		$("#todate").datepicker();
+	} catch (ex) {
+		console.log('Error ' + ex.message + ' found in bindDatepicker function');
+	}
+}
+
+
+fnEnableDisableOtherBUField = function () {
+	if ($('select[title="BusinessUnit"] option:selected').text() == 'Other Business Unit') {
+		$("#otherBU").show();
+	} else {
+		$("input[title='OtherBU']").val('');
+		$("#otherBU").hide();
+	}
+
+	$("select[title='BusinessUnit']").on('change', function () {
+		var selectedBU = $("select[title='BusinessUnit'] option:selected").text();
+
+		if (selectedBU == 'Other Business Unit')
+			$("#otherBU").show();
+		else {
+			$("input[title='OtherBU']").val('');
+			$("#otherBU").hide();
+		}
+	});
+
+
+}
+
+fnEnableDisableOtherContractType = function () {
+	if ($("select[id='contractType'] option:selected").text() == "Other Contract Type") {
+		$("#OtherCntrctType").show();
+
+	} else {
+		$("input[type='OtherCntrctType']").val('');
+		$("#OtherCntrctType").hide();
+	}
+
+	$("select[id='contractType']").on('change', function () {
+		if ($("select[id='contractType'] option:selected").text() == "Other Contract Type") {
+			$("#OtherCntrctType").show();
+
+		} else {
+			$("input[type='OtherCntrctType']").val('');
+			$("#OtherCntrctType").hide();
+		}
+
+	});
+}
+
+fnEnableDisableOtherSubject = function () {
+	if ($("select[id='Subject'] option:selected").text() == "Other Subject") {
+		$("#OtherSubject").show();
+
+	} else {
+		$("input[type='OtherSubject']").val('');
+		$("#OtherSubject").hide();
+	}
+
+	$("select[id='subject']").on('change', function () {
+		if ($("select[id='subject'] option:selected").text() == "Other Subject") {
+			$("#OtherSubject").show();
+
+		} else {
+			$("input[type='OtherCntrctType']").val('');
+			$("#OtherSubject").hide();
+		}
+
+	});
+}
+
+
+fnAppendCntrctTypeOptionsBasedOnBU = function () {
+	try {
+		debugger;
+		var selectedBU = $('select[title="BusinessUnit"] option:selected').text();
+		var cntractTypeUrl = '';
+
+		if (selectedBU != "(None)" && selectedBU != "Other Business Unit") {
+			var cntractTypeUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/getbytitle('" + DOAList + "')/items?$select=Title,BusinessUnit/Title&$expand=BusinessUnit&$filter=BusinessUnit/Title eq '" + selectedBU + "'";
+			fnBindContractTypeOptions(cntractTypeUrl, currentItemData[0].ContractType);
+
+
+		} else {
+			if (selectedBU == "Other Business Unit") {
+				$("#contractType option").remove();
+				$("#contractType").append("<option val='0'>(None)</option>");
+				$("#contractType").append("<option val='Other Contract Type'>Other Contract Type</option>");
+			}
+		}
+
+		$("select[title='BusinessUnit']").on('change', function () {
+			var selectedBU = $("select[title='BusinessUnit'] option:selected").text();
+
+			if (selectedBU != "(None)" && selectedBU != "Other Business Unit") {
+				var cntractTypeUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/getbytitle('" + DOAList + "')/items?$select=Title,BusinessUnit/Title&$expand=BusinessUnit&$filter=BusinessUnit/Title eq '" + selectedBU + "'";
+				fnBindContractTypeOptions(cntractTypeUrl, '');
+			} else {
+				if (selectedBU == "Other Business Unit") {
+					$("#contractType option").remove();
+					$("#contractType").append("<option val='0'>(None)</option>");
+					$("#contractType").append("<option val='Other Contract Type'>Other Contract Type</option>");
+
+					$("#subject option").remove();
+					$("#subject").append("<option val='(None)'>(None)</option>");
+					$("#subject").append("<option val='Other Subject'>Other Subject</option>");
+
+				}
+			}
+
+		});
+
+	} catch (ex) {
+		console.log("Problem found in the function fnAppendCntrctTypeOptionsBasedOnBU")
+	}
+}
+
+fnBindContractTypeOptions = function (cntractTypeUrl, previousSelectedVal) {
+	$("#contractType option").remove();
+	$("#contractType").append("<option val='(None)'>(None)</option>");
+
+	$("#subject option").remove();
+	$("#subject").append("<option val='(None)'>(None)</option>");
+
+	fnGetData(cntractTypeUrl).done(function (data) {
+		if (data.d.results.length > 0) {
+			var resultsArry = [];
+
+			var uniqueValues = [];
+			var count = 0;
+
+			$.each(data.d.results, function (i, j) {
+				resultsArry.push({
+					'CntrctType': j.Title
+				});
+			});
+
+			var filtereddata = new Array();
+			filtereddata = resultsArry;
+			var Uniquefiltereddata = [];
+
+			$.each(filtereddata, function (i, el) {
+				if ($.inArray(el.CntrctType, Uniquefiltereddata) === -1)
+					Uniquefiltereddata.push(el.CntrctType);
+			});
+
+
+			$.each(Uniquefiltereddata, function (i, v) {
+				$("#contractType").append("<option val='" + v + "' >" + v + "</option>");
+			});
+
+			//auto select previous selected option
+			if (previousSelectedVal != '')
+				$("#contractType option[val='" + previousSelectedVal + "']").attr('selected', 'selected');
+		}
+
+	}).fail(function (data) {
+		console.log('Error ' + data.responseJSON.error.message.value + 'found in fnbindSubjects')
+	})
+}
+
+
+fnAppendSubjectOptionsBasedOnContractType = function () {
+	try {
+		debugger;
+		var selectedCntrctType = $('select[id="contractType"] option:selected').text();
+		var subjectsUrl = '';
+
+		if (selectedCntrctType != "(None)" && selectedCntrctType != "Other Contract Type") {
+			var subjectsUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/getbytitle('" + DOAList + "')/items?$select=Title,Subject&$filter=Title eq '" + selectedCntrctType + "'";
+			fnBindSubjectOptions(subjectsUrl, currentItemData[0].Subject);
+		} else {
+			if (selectedCntrctType == "Other Contract Type") {
+				$("#subject option").remove();
+				$("#subject").append("<option val='0'>(None)</option>");
+				$("#subject").append("<option val='Other Subject'>Other Subject</option>");
+			}
+		}
+
+		$("select[id='contractType']").on('change', function () {
+			var selectedCntrctType = $("select[id='contractType'] option:selected").text();
+			var selectedBU = $("select[title='BusinessUnit'] option:selected").text();
+
+			if (selectedCntrctType != "(None)" && selectedCntrctType != "Other Contract Type") {
+				var subjectsUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/getbytitle('" + DOAList + "')/items?$select=Title,Subject&$filter=Title eq '" + selectedCntrctType + "'";
+				fnBindSubjectOptions(subjectsUrl, '');
+			} else {
+				if (selectedBU == "Other Contract Type") {
+					$("#subject option").remove();
+					$("#subject").append("<option val='0'>(None)</option>");
+					$("#subject").append("<option val='Other Subject'>Other Subject</option>");
+				}
+			}
+
+		});
+
+	} catch (ex) {
+		console.log("Problem found in the function fnAppendCntrctTypeOptionsBasedOnBU")
+	}
+}
+
+
+fnBindSubjectOptions = function (subjectsUrl, previousSelectedVal) {
+	$("#subject option").remove();
+	$("#subject").append("<option val='(None)'>(None)</option>");
+
+	fnGetData(subjectsUrl).done(function (data) {
+		if (data.d.results.length > 0) {
+			var resultsArry = [];
+
+			var uniqueValues = [];
+			var count = 0;
+
+
+			$.each(data.d.results, function (i, v) {
+				$("#subject").append("<option val='" + v.Subject + "' >" + v.Subject + "</option>");
+			});
+
+			//auto select previous selected option
+			if (previousSelectedVal != '')
+				$("#subject option[val='" + previousSelectedVal + "']").attr('selected', 'selected')
+		}
+
+	}).fail(function () {
+		console.log('Error found in fnbindSubjects')
+	})
+}
+
+fnbindListOfUnits = function () {
+	try {
+		//var selectedSubject=$("select[id='subject'] option:selected").text();
+		var listOfUnitsUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/getbytitle('List Of Units and Approvers')/items";
+		$("#listOfUnits option").remove();
+		var louArray = [];
+
+		fnGetData(listOfUnitsUrl).done(function (data) {
+			if (data.d.results.length > 0) {
+				$.each(data.d.results, function (i, lou) {
+					louArray.push({
+						'Title': lou.Title,
+						'ID': lou.ID
+					});
+					//lou.Title=lou.Title.length
+
+				});
+
+				louArray.sort(fnGetSortOrder("Title")); //Pass the attribute to be sorted on  
+				//console.log("Sorted Employee Names : ");  
+				for (var item in louArray) {
+					$("#listOfUnits").append("<option value='" + louArray[item].ID + "'>" + louArray[item].Title + "</option>");
+				}
+			}
+		}).then(function () {
+			fnMultiSelect();
+			debugger;
+			var c = 0;
+			if (currentItemData[0].ListOfUnits != null) {
+				var lou = currentItemData[0].ListOfUnits;
+				var louArray = lou.split(';');
+
+
+
+				$.each(louArray, function (i, louitem) {
+					if (louitem != "") {
+						c++;
+					}
+
+					$('#listOfUnits').siblings().find("input[value='" + louitem + "']").prop("checked", true);
+					$("#listOfUnits option[value='" + louitem + "']").attr("selected", "true");
+
+				})
+				//$('#listOfUnits').next()[0].childNodes[0].childNodes[0].innerHTML = louArray}
+				//$('#listOfUnits').next()[0].childNodes[0].childNodes[0].innerHTML = c - 1 + " Selected";
+				if (louArray.length > 1)
+					$('#listOfUnits').next()[0].childNodes[0].childNodes[0].innerHTML = c + " Selected";
+				else
+					$('#listOfUnits').next()[0].childNodes[0].childNodes[0].innerHTML = louArray.length;
+
+			}
+		}).fail(function () {
+			console.log('Error found in fnbindSubjects')
+		})
+	} catch (ex) {
+		console.log(ex)
+	}
+}
+
+
+fnGetParameterValues = function (param) {
+	var url = window.location.href.slice(window.location.href.indexOf('?') + 1).split('&');
+	for (var i = 0; i < url.length; i++) {
+		var urlparam = url[i].split('=');
+		if (urlparam[0] == param) {
+			return urlparam[1];
+		}
+	}
+}
+
+fnconvertandFormatDate = function (d) {
+	var date = '';
+	if (d != '' && d != null) {
+		var dt = d.split('T');
+		var dformat = new Date(dt[0]);
+		var day = dformat.getDate() + 1;
+		var mnth = dformat.getMonth() + 1;
+		var year = dformat.getFullYear();
+
+		date = mnth + "/" + day + "/" + year;
+
+		//alert(mnth+"/"+day+"/"+year);
+	}
+	return date;
+}
+
+fnGetData = function (url) {
+	return $.ajax({
+		url: url,
+		async: false,
+		type: "GET",
+		headers: {
+			"accept": "application/json;odata=verbose",
+		}
+	});
+}
+
+fnMultiSelect = function () {
+	$('#listOfUnits').multiselect({
+		enableFiltering: true,
+		enableCaseInsensitiveFiltering: true
+
+	});
+
+	//$(".multiselect").css('width','280px !important');
+}
+
+fnGetSortOrder = function (prop) {
+	return function (a, b) {
+		if (a[prop] > b[prop]) {
+			return 1;
+		} else if (a[prop] < b[prop]) {
+			return -1;
+		}
+		return 0;
+	}
+}
+
+
+fnConvertCurrency = function () {
+	var enpointUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/getbytitle('Currency')/items";
+	var currencySelected = $("select[title='Currency'] option:selected").text();
+	var totalCntrctValue = $("input[title='Total Contract Value']").val();
+
+	if (totalCntrctValue != '' && currencySelected != "(None)") {
+		fnGetData(enpointUrl).done(function (data) {
+			$.each(data.d.results, function (i, val) {
+				if (currencySelected == val.Title) {
+
+					$("input[title='ConvertedTtlCntrctValue']").val(parseInt(totalCntrctValue) * val.in_x0020_Euros);
+				}
+			});
+		}).fail(function (data) {
+			console.log(data.message)
+		})
+	}
+}
+
+
+fnSetUser = function (columnLableToFetch, columnLabelToBind) {
+	var selectedUsers = $(".ms-standardheader nobr:contains('" + columnLableToFetch + "')").closest("tr").find(".ms-entity-resolved");
+	var users = '';
+	if (selectedUsers.length > 0) {
+		$.each(selectedUsers, function (i, user) {
+			ExecuteOrDelayUntilScriptLoaded(function () {
+				setTimeout(function () {
+					users = user.id;
+					SetAndResolvePeoplePicker(columnLabelToBind, users);
+				}, 2000);
+			}, 'clientpeoplepicker.js');
+		});
+	}
+
+}
+
+function SetAndResolvePeoplePicker(fieldName, userAccountName) {
+	//alert(userAccountName);  
+	var _PeoplePicker = $("div[id*='" + fieldName + "']");
+	var _PeoplePickerTopId = _PeoplePicker.attr('id');
+
+	var _PeoplePickerEditer = $("input[id*='" + fieldName + "']");
+
+	userAccountName.split(";#").forEach(function (part) {
+		if (part !== "" && part !== null) {
+			_PeoplePickerEditer.val(part);
+			var _PeoplePickerOject = SPClientPeoplePicker.SPClientPeoplePickerDict[_PeoplePickerTopId];
+			_PeoplePickerOject.AddUnresolvedUserFromEditor(true);
+		}
+	});
+
+}
+
+fnBtnClick = function () {
+	try {
+		$("#btnsubmit").on('click', function () {
+			eventId = 'Save';
+			//PreSaveAction();
+			precheckCondition();
+			//$("input[type='button'][id$='diidIOSaveItem']").trigger("click");
+		});
+		$("#btndraft").on('click', function () {
+			eventId = 'Draft';
+			$("input[type='button'][id$='diidIOSaveItem']").trigger("click");
+		});
+
+		$("#btnResubmit").on('click', function () {
+			eventId = 'Resubmit';
+			//PreSaveAction();
+			precheckCondition();
+			//$("input[type='button'][id$='diidIOSaveItem']").trigger("click");
+		});
+
+
+		$("#btncancel").on('click', function () {
+			window.location.href = homepageurl;
+		});
+
+	} catch (ex) {
+		console.log('Error ' + ex.message + ' found in btnClick function');
+	}
+
+}
+
+function initializePplPickNew(peoplePickerElementId) {
+	var schema = {};
+	schema['PrincipalAccountType'] = 'User,DL,SecGroup,SPGroup';
+	schema['SearchPrincipalSource'] = 15;
+	schema['ResolvePrincipalSource'] = 15;
+	schema['AllowMultipleValues'] = true;
+	schema['MaximumEntitySuggestions'] = 50;
+	this.SPClientPeoplePicker_InitStandaloneControlWrapper(peoplePickerElementId, null, schema);
+}
+
+function GetLoanListItems() {
+	var pplpickIGNew = SPClientPeoplePicker.SPClientPeoplePickerDict.peoplepicker_TopSpan;
+	var pplpickIGNew1 = SPClientPeoplePicker.SPClientPeoplePickerDict.peoplepicker1_TopSpan;
+	if (pplpickIGNew != undefined) {
+		seledIGuestId = GetPPValue(pplpickIGNew);
+	}
+	if (pplpickIGNew1 != undefined) {
+		seledIGuestId1 = GetPPValue(pplpickIGNew1);
+	}
+	console.log(seledIGuestId);
+}
+
+function GetPPValue(peoplePicker) {
+	var users = peoplePicker.GetAllUserInfo();
+	var userId = [];
+	UsersName = "";
+	for (var i = 0; i < users.length; i++) {
+		userId.push(GetUserID(users[i].Key));
+	}
+	return userId;
+}
+
+function GetUserID(logonName) {
+	var item = {
+		'logonName': logonName
+	};
+
+	var UserId = $.ajax({
+		url: _spPageContextInfo.siteAbsoluteUrl + "/_api/web/ensureuser",
+		type: "POST",
+		async: false,
+		contentType: "application/json;odata=verbose",
+		data: JSON.stringify(item),
+		headers: {
+			"Accept": "application/json;odata=verbose",
+			"X-RequestDigest": $("#__REQUESTDIGEST").val()
+		},
+		success: function (data) {
+			UsersName += data.d.Title + ";";
+			return data.d.Id;
+
+		},
+		error: function (data) {
+			console.log(data);
+		}
+	});
+	return UserId.responseJSON.d.Id;
+}
+
+function forceNumericpipe() {
+	var $input = $(this);
+	$input.val($input.val().replace(/[|/||]+/g, ''));
+}
+
+setProgressStatus = function () {
+	var effectFrom = $("#fromdate").val();
+	var effectTo = $("#todate").val();
+	var contractName = $('input[type="text"][title="Contract Name"]').val();
+	var currency = $('select[title="Currency"] option:selected').val();
+	var dept = $('select[title="Department"] option:selected').val();
+	var ContractParty = $('select[title="ContractParty"] option:selected').val();
+	var OtherContractParty = $('input[type="text"][title="Other Contract Party"]').val();
+	var businessUnit = $('select[title="BusinessUnit"] option:selected').val();
+	var OtherBusinessUnit = $('input[type="text"][title="OtherBU"]').val();
+	var cntrctType = $('select[id="contractType"] option:selected').val();
+	var otherCntrctType = $('input[type="text"][title="OtherContractType"]').val();
+	var ttlCntrctVal = $('input[type="text"][title="Total Contract Value"]').val();
+	var subject = $("#subject option:selected").val();
+	var otherSubject = $('input[type="text"][title="OtherSubject"]').val();
+	var listOfUnits = $("#listOfUnits option:selected");
+	var LOU = '';
+	if (listOfUnits.length > 0) {
+		$.each(listOfUnits, function (i, v) {
+			LOU += v.value + ';';
+		});
+	}
+	var signature1 = $("#peoplepicker_TopSpan_HiddenInput").val();
+	var pplpickIGNew = SPClientPeoplePicker.SPClientPeoplePickerDict.peoplepicker_TopSpan;
+	var signature2 = $("#peoplepicker1_TopSpan_HiddenInput").val();
+	var pplpickIGNew1 = SPClientPeoplePicker.SPClientPeoplePickerDict.peoplepicker1_TopSpan;
+	var signature1Label = $('input[type="text"][title="Signature1Label"]').val();
+	var signature2Label = $('input[type="text"][title="Signature2Label"]').val();
+	var contractDesc = $('textarea[title="Contract Desciption"]').val();
+	var itemID = parseInt(GetUrlKeyValue("ID"));
+	var listOfUnits = $("#listOfUnits option:selected");
+
+	var currentApprvUnit = '';
+	var nextApprvUnits1 = '';
+
+	if (listOfUnits.length != 0) {
+		//var units=listOfUnits.split(';');
+		var j = 0;
+		for (var i = 0; i < listOfUnits.length; i++) {
+			if (i == 0) {
+				currentApprvUnit = listOfUnits[i].value;
+				j++;
+			} else {
+				nextApprvUnits1 += listOfUnits[i].value;
+
+				if (j < listOfUnits.length) {
+					nextApprvUnits1 += ';'
+				}
+			}
+		}
+		// $("input[title='CurrentApprovalListOfUnit']").val(currentApprvUnit);
+		// $("input[title='NextApproverUnit']").val(nextApprvUnits1);
+
+	}
+
+	if ($("#peoplepicker_TopSpan_ResolvedList").html() == "") {
+		seledIGuestId = [];
+	}
+	if ($("#peoplepicker_TopSpan_ResolvedList").html() != "") {
+		seledIGuestId = GetPPValue(pplpickIGNew);
+	}
+	if ($("#peoplepicker1_TopSpan_ResolvedList").html() == "") {
+		seledIGuestId1 = [];
+	}
+	if ($("#peoplepicker1_TopSpan_ResolvedList").html() != "") {
+		seledIGuestId1 = GetPPValue(pplpickIGNew1);
+	}
+
+	siteURL = _spPageContextInfo.webAbsoluteUrl;
+	var cntrctStatus = '';
+	if (eventId == 'Save')
+		cntrctStatus = 'In Progress';
+
+	if (eventId == 'Draft')
+		cntrctStatus = 'Draft';
+
+	if (eventId == 'Resubmit') {
+		cntrctStatus = 'Resubmitted';
+		currentApprvUnit = currentItemData[0].CurrentApprovalListOfUnit;
+		nextApprvUnits1 = currentItemData[0].NextApproverUnit;
+	}
+
+	var taskProperties = {
+		'__metadata': {
+			'type': 'SP.Data.ContractsListItem'
+		},
+		'ContractStatus': cntrctStatus,
+		'Effectiveperiodfrom': effectFrom,
+		'EffectivePeriodTo': effectTo,
+		'ContractName': contractName,
+		'CurrencyId': currency,
+		'TotalContractValue': ttlCntrctVal,
+		'ContractPartyId': ContractParty,
+		'BusinessUnitId': businessUnit,
+		'ContractType': cntrctType,
+		'OtherContractType': otherCntrctType,
+		'OtherContractParty': OtherContractParty,
+		'OtherBU': OtherBusinessUnit,
+		'Subject': subject,
+		'OtherSubject': otherSubject,
+		//'ListOfUnits' : listOfUnits,
+		'ListOfUnits': LOU,
+		'Signature1ApproverId': {
+			'results': seledIGuestId
+		},
+		'Signature2ApproverId': {
+			'results': seledIGuestId1
+		},
+		'Signature1': signature1Label,
+		'Signature2': signature2Label,
+		'ContractDesciption': contractDesc,
+		'CurrentApprovalListOfUnit': currentApprvUnit,
+		'NextApproverUnit': nextApprvUnits1
+	};
+	var apiPath = siteURL + "/_api/lists/getbytitle('Contracts')/items(" + itemID + ")";
+	$.ajax({
+		url: apiPath,
+		type: "POST",
+		headers: {
+			"Accept": "application/json;odata=verbose",
+			"Content-Type": "application/json;odata=verbose",
+			"X-RequestDigest": $("#__REQUESTDIGEST").val(),
+			"IF-MATCH": "*",
+			"X-HTTP-Method": "MERGE"
+		},
+
+		data: JSON.stringify(taskProperties),
+		async: false,
+		success: function (data) {
+			window.location.href = homepageurl;
+		},
+		error: function (data) {
+			console.log(data);
+		}
+	});
+}
+
+precheckCondition = function () {
+	if (checkValidations()) {
+		fnSetValuesToCurrentItem();
+		fnConvertCurrency();
+
+		setTimeout(function () {
+			setProgressStatus();
+		}, 1000)
+		var redirectUrl = homepageurl;
+		sessvars.targetUrl = redirectUrl;
+	}
+}
+
+PreSaveAction = function () {
+	//alert(eventId);	
+	//$("input[title='Effective Period From']").val();
+	//$("input[title='Effective Period To']").val($("#todate").val());
+	//$("select[title='Contract Status']").removeAttr('disabled');
+
+	if (eventId != 'Draft') {
+		if (checkValidations()) {
+			fnSetValuesToCurrentItem();
+			fnConvertCurrency();
+
+
+			setTimeout(function () {
+				setProgressStatus();
+			}, 1000)
+			var redirectUrl = homepageurl;
+			sessvars.targetUrl = redirectUrl;
+			return true;
+		}
+	} else {
+		$('select[title="Contract Status"] option[value="In Progress"]').attr('selected', true);
+		return true;
+	}
+}
+
+
+checkValidations = function () {
+	var isValidationSuccess = true;
+	var baseMsg = 'Below fields are mandatory \n';
+	var errorMsg = '';
+
+	var ContractName = $('input[type="text"][title="Contract Name"]').val().trim();
+	var ttlCntrctVal = $('input[type="text"][title="Total Contract Value"]').val();
+	var currency = $('select[title="Currency"] option:selected').val();
+	var dept = $('select[title="Department"] option:selected').val();
+	var ContractParty = $('select[title="ContractParty"] option:selected').text();
+	var OtherContractParty = $('input[type="text"][title="Other Contract Party"]').val();
+
+	//ContractParty
+	var businessUnit = $('select[title="BusinessUnit"] option:selected').text();
+	var otherBusinessUnit = $('input[type="text"][title="OtherBU"]').val();
+	var cntrctType = $('select[id="contractType"] option:selected').val();
+	var otherCntrctType = $('input[type="text"][title="OtherContractType"]').val();
+	var todate = $("#todate").val();
+	var fromdate = $("#fromdate").val();
+
+	var subject = $("#subject option:selected").val();
+	var otherSubject = $('input[type="text"][title="OtherSubject"]').val();
+	var listOfUnits = $("#listOfUnits option:selected");
+
+
+	var signature1 = $("#peoplepicker_TopSpan_HiddenInput").val();
+	var signature2 = $("#peoplepicker1_TopSpan_HiddenInput").val();
+	//var parsed = JSON.parse(data);  
+	//alert('Account Name:-'+ parsed[0].Key +'\nDisplay Name:-'+parsed[0].DisplayText +'\nUser Name:-'+ parsed[0].Description +'\n -----User Properties-------\n'+parsed[0].EntityData.Title +'\n'+parsed[0].EntityData.Department+'\n'+parsed[0].EntityData.SIPAddress+'\n');  
+
+	//$("div[title='Signature1Approver']").html("vevenka")
+
+	if (ContractName == '') {
+		$('input[type="text"][title="Contract Name"]').css('border-color', 'red');
+		isValidationSuccess = false;
+		errorMsg += 'Contract Name \n';
+	}
+	if (ttlCntrctVal == '') {
+		$('input[type="text"][title="Total Contract Value"]').css('border-color', 'red');
+		isValidationSuccess = false;
+		errorMsg += 'Total Contract Value \n';
+	}
+
+	if (currency == '0') {
+		$('select[title="Currency"]').css('border-color', 'red');
+		isValidationSuccess = false;
+		errorMsg += 'Currency \n';
+	}
+
+	if (fromdate == '') {
+		$('input[id="fromdate"]').css('border-color', 'red');
+		isValidationSuccess = false;
+		errorMsg += 'Effective Period From \n';
+	}
+
+	if (todate == '') {
+		$('input[id="todate"]').css('border-color', 'red');
+		isValidationSuccess = false;
+		errorMsg += 'Effective Period To \n';
+	}
+
+	if (fromdate != "" && todate != "") {
+		if (fromdate > todate) {
+			isValidationSuccess = false;
+			errorMsg += 'Effective Period From  should not be greater than Effective Period To \n';
+		}
+	}
+
+	if (businessUnit == '(None)') {
+		$('select[title="BusinessUnit"]').css('border-color', 'red');
+		isValidationSuccess = false;
+		errorMsg += 'Business Unit \n';
+	} else if (businessUnit == "Other Business Unit") {
+		if (otherBusinessUnit == '') {
+			$('input[title="OtherBU"]').css('border-color', 'red');
+			isValidationSuccess = false;
+			errorMsg += 'Other Business Unit \n';
+		}
+	}
+
+	if (ContractParty == '(None)') {
+		$('select[title="ContractParty"]').css('border-color', 'red');
+		isValidationSuccess = false;
+		errorMsg += 'Contract Party \n';
+	} else if (ContractParty == "Other Contract Party") {
+		if (OtherContractParty == '') {
+			$('input[title="Other Contract Party"]').css('border-color', 'red');
+			isValidationSuccess = false;
+			errorMsg += 'Other Contract Party \n';
+		}
+	}
+
+	if (cntrctType == '(none)') {
+		$('select[id="contractType"]').css('border-color', 'red');
+		isValidationSuccess = false;
+		errorMsg += 'Contract Type \n';
+	} else if (cntrctType == "Other Contract Type") {
+		if (otherCntrctType == '') {
+			$('input[title="OtherContractType"]').css('border-color', 'red');
+			isValidationSuccess = false;
+			errorMsg += 'Other Contract Type \n';
+		}
+	}
+
+	if (subject == '(none)') {
+		$('select[id="subject"]').css('border-color', 'red');
+		isValidationSuccess = false;
+		errorMsg += 'Subject \n';
+	} else if (subject == "Other Subject") {
+		if (otherSubject == '') {
+			$('input[title="OtherSubject"]').css('border-color', 'red');
+			isValidationSuccess = false;
+			errorMsg += 'Other Subject \n';
+		}
+	}
+
+	if (listOfUnits.length == 0) {
+		$('button[class="multiselect dropdown-toggle btn btn-default"]').css('border-color', 'red');
+		isValidationSuccess = false;
+		errorMsg += 'List of Units \n';
+	}
+
+	if (signature1 == "") {
+		$('div[id="peoplepicker_TopSpan"]').css('border-color', 'red');
+		isValidationSuccess = false;
+		errorMsg += 'Signature 1 \n';
+	}
+
+	if (signature2 == "") {
+		$('div[id="peoplepicker1_TopSpan"]').css('border-color', 'red');
+		isValidationSuccess = false;
+		errorMsg += 'Signature 2 \n';
+	}
+
+
+	if (errorMsg != '')
+		alert(baseMsg + errorMsg);
+
+	return isValidationSuccess;
+
+}
+
+
+/*fnSetValuesToCurrentItem=function(){
+	var sigUsers1='';
+	var sigUsers2='';
+	fnSetCurrentnextApprovers();
+	
+	$('select[title="Contract Status"] option[value="Contract Template Upload Pending"]').attr('selected', true);
+	$('select[title="Status"] option[value="In Progress"]').attr('selected', true);
+	$("input[title='Effective Period To']").val($("#todate").val());
+	
+	var signature1=$("#peoplepicker_TopSpan_HiddenInput").val();
+	var signature2=$("#peoplepicker1_TopSpan_HiddenInput").val(); 
+	var listOfUnits=$("#listOfUnits option:selected");
+	var contractType=$("#contractType option:selected").val();
+	var selectedListOfUnits='';
+	
+	if(signature1!='') {
+		 var parsed = JSON.parse(signature1);
+		 $.each(parsed,function(i,user){
+		 	sigUsers1+=user.Key+';'
+		 });
+		 
+		 $("div[title='Signature1Approver']").html(sigUsers1);
+	 }
+	 
+	 if(signature2!='') {
+		 var parsed1 = JSON.parse(signature2);
+		 $.each(parsed1,function(i,user){
+		 	sigUsers2+=user.Key+';'
+		 });
+		 
+		 $("div[title='Signature2Approver']").html(sigUsers2);
+	 }
+		
+	if(listOfUnits.length!=0){
+		count=0;
+		$.each(listOfUnits,function(i,lou){
+			selectedListOfUnits+=lou.value;
+			count++;
+			
+			if(count<listOfUnits.length){
+				selectedListOfUnits+=';'
+			}
+		});
+		$("input[title='ListOfUnits']").val(selectedListOfUnits);
+	}
+	
+	$("input[title='Signature1Label']").val(ApprvrLbl1);
+	$("input[title='Signature2Label']").val(ApprvrLbl2);
+	$("input[title='ContractType']").val(contractType);
+	
+}*/
+
+
+fnSetValuesToCurrentItem = function () {
+	var sigUsers1 = '';
+	var sigUsers2 = '';
+
+
+	//$('select[title="Status"] option[value="In Progress"]').attr('selected', true);
+	if (eventId == 'draft' || eventId == 'Save') {
+		$('select[title="Contract Status"] option[value="In Progress"]').attr('selected', true);
+		updateFeedbackData('Submitted');
+	} else {
+		$('select[title="Contract Status"] option[value="Resubmitted"]').attr('selected', true);
+		updateFeedbackData('Resubmitted');
+	}
+
+
+
+	$("input[title='Effective Period To']").val($("#todate").val());
+
+	var signature1 = $("#peoplepicker_TopSpan_HiddenInput").val();
+	var signature2 = $("#peoplepicker1_TopSpan_HiddenInput").val();
+	var listOfUnits = $("#listOfUnits option:selected");
+	var contractType = $("#contractType option:selected").val();
+	var subject = $("#subject option:selected").val();
+	var selectedListOfUnits = '';
+
+	if (signature1 != '') {
+		var parsed = JSON.parse(signature1);
+		$.each(parsed, function (i, user) {
+			sigUsers1 += user.AutoFillKey + ';'
+		});
+
+		$("div[title='Signature1Approver']").html(sigUsers1);
+	}
+
+	if (signature2 != '') {
+		var parsed1 = JSON.parse(signature2);
+		$.each(parsed1, function (i, user) {
+			sigUsers2 += user.AutoFillKey + ';'
+		});
+
+		$("div[title='Signature2Approver']").html(sigUsers2);
+	}
+
+	if (listOfUnits.length != 0) {
+		count = 0;
+		$.each(listOfUnits, function (i, lou) {
+			selectedListOfUnits += lou.value;
+			count++;
+
+			if (count < listOfUnits.length) {
+				selectedListOfUnits += ';'
+			}
+		});
+		$("input[title='ListOfUnits']").val(selectedListOfUnits);
+	}
+
+	var currentApprvUnit = '';
+	var nextApprvUnits1 = '';
+
+	if (listOfUnits.length != 0) {
+		//var units=listOfUnits.split(';');
+		var j = 0;
+		for (var i = 0; i < listOfUnits.length; i++) {
+			if (i == 0) {
+				currentApprvUnit = listOfUnits[i].value;
+				j++;
+			} else {
+				nextApprvUnits1 += listOfUnits[i].value;
+
+				if (j < listOfUnits.length) {
+					nextApprvUnits1 += ';'
+				}
+			}
+		}
+		$("input[title='CurrentApprovalListOfUnit']").val(currentApprvUnit);
+		$("input[title='NextApproverUnit']").val(nextApprvUnits1);
+
+	}
+
+	if (contractType !== "Other Contract Type") {
+		$("input[title='Signature1Label']").val(ApprvrLbl1);
+		$("input[title='Signature2Label']").val(ApprvrLbl2);
+	}
+	$("input[title='ContractType']").val(contractType);
+	$("input[title='Subject']").val(subject);
+
+	// alert(selectedListOfUnits);
+	//alert('Account Name:-'+ parsed[0].Key +'\nDisplay Name:-'+parsed[0].DisplayText +'\nUser Name:-'+ parsed[0].Description +'\n -----User Properties-------\n'+parsed[0].EntityData.Title +'\n'+parsed[0].EntityData.Department+'\n'+parsed[0].EntityData.SIPAddress+'\n');  
+
+	//$("div[title='Signature1Approver']").html("vevenka")
+
+}
+
+
+
+fnSetApprovers = function () {
+	try {
+		debugger;
+		var existingApp1Lbl = currentItemData[0].Signature1;
+		var existingApp1Lb2 = currentItemData[0].Signature2;
+
+		if (existingApp1Lbl != "" && existingApp1Lbl != null)
+			$("#approver1").css('display', 'block').find('label').html(existingApp1Lbl + "<a class='my-tool-tip' data-toggle='tooltip' data-placement='left' title='Required Field'><i class='fa fa-circle'></i></a>");
+
+		if (existingApp1Lb2 != "" && existingApp1Lb2 != null)
+			$("#approver2").css('display', 'block').find('label').html(existingApp1Lb2 + "<a class='my-tool-tip' data-toggle='tooltip' data-placement='left' title='Required Field'><i class='fa fa-circle'></i></a>");
+
+		$("select[id='subject']").on('change', function () {
+			var selectedSubject = $("select[id='subject'] option:selected").text();
+
+			$("#appr1lbl").hide();
+			$("#appr2lbl").hide();
+			$("#approver1").hide();
+			$("#approver2").hide();
+
+			if (selectedSubject != "(none)" && selectedSubject != "Other Subject") {
+				$("input[title='OtherSubject']").val('');
+				var enpointUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/getbytitle('" + DOAList + "')/items?$select=Subject,Signature1,Signature2&$filter=Subject eq '" + selectedSubject + "'"
+				var ttlCnvrtdCntrctVal = '';
+
+				fnGetData(enpointUrl).done(function (data) {
+					if (data.d.results.length == 1) {
+						/*$.each(data.d.results,function(i,v){
+						  $("#listOfUnits").append("<option val='"+v.Id+"' >"+v.Title+"</option>");
+						})*/
+						ApprvrLbl1 = data.d.results[0].Signature1;
+						ApprvrLbl2 = data.d.results[0].Signature2
+
+						if (ApprvrLbl1.indexOf('Key') > -1 && ApprvrLbl2.indexOf('Key') > -1) {
+
+							var enpointUrl1 = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/getbytitle('Currency')/items";
+							var currencySelected = $("select[title='Currency'] option:selected").text();
+							var totalCntrctValue = $("input[title='Total Contract Value']").val();
+
+							if (totalCntrctValue != '' && currencySelected != "(None)") {
+								GetData(enpointUrl1).done(function (data) {
+									$.each(data.d.results, function (i, val) {
+										if (currencySelected == val.Title) {
+
+											ttlCnvrtdCntrctVal = parseInt(totalCntrctValue) * val.in_x0020_Euros;
+										}
+									});
+								}).fail(function (data) {
+									console.log(data.message)
+								});
+
+								var retriveKeyUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/getbytitle('KEYVALUES')/items?$select=*&$filter=Key eq '" + ApprvrLbl1 + "' or Key eq '" + ApprvrLbl2 + "'";
+
+								GetData(retriveKeyUrl).done(function (data) {
+									if (data.d.results.length > 0) {
+										var alertFlag = false;
+										var limitVal = null;
+										var conditionFlag = "";
+										var lbl_1 = "";
+										var lbl_2 = "";
+										$.each(data.d.results, function (i, val) {
+											if (val.Key == "Key 1") {
+												if (ttlCnvrtdCntrctVal < 5000) {
+													conditionFlag = "Condition 1";
+												} else if (ttlCnvrtdCntrctVal >= 5000 || ttlCnvrtdCntrctVal <= 25000) {
+													conditionFlag = "Condition 2";
+												} else if (ttlCnvrtdCntrctVal > 150000 || ttlCnvrtdCntrctVal <= 25000) {
+													conditionFlag = "Condition 3";
+												} else if (ttlCnvrtdCntrctVal >= 150000 || ttlCnvrtdCntrctVal <= 500000) {
+													conditionFlag = "Condition 4";
+												} else if (ttlCnvrtdCntrctVal > 500000 || ttlCnvrtdCntrctVal <= 2000000) {
+													conditionFlag = "Condition 5";
+												} else if (ttlCnvrtdCntrctVal > 2000000) {
+													conditionFlag = "Condition 6";
+												}
+												if (val.Condition == conditionFlag) {
+													lbl_1 = val.Signatory1;
+													lbl_2 = val.Signatory2;
+												}
+											}
+											if (val.Key == "Key 2") {
+												if (ttlCnvrtdCntrctVal <= 150000) {
+													alertFlag = true;
+													limitVal = "150000";
+												} else if (ttlCnvrtdCntrctVal > 150000 || ttlCnvrtdCntrctVal <= 500000) {
+													conditionFlag = "Condition 4";
+												} else if (ttlCnvrtdCntrctVal > 500000 || ttlCnvrtdCntrctVal <= 2000000) {
+													conditionFlag = "Condition 5";
+												} else if (ttlCnvrtdCntrctVal > 2000000) {
+													conditionFlag = "Condition 6";
+												}
+												if (val.Condition == conditionFlag) {
+													lbl_1 = val.Signatory1;
+													lbl_2 = val.Signatory2;
+												}
+											}
+											if (val.Key == "Key 3") {
+												if (ttlCnvrtdCntrctVal <= 5000000) {
+													conditionFlag = "Condition 3";
+												} else if (ttlCnvrtdCntrctVal >= 5000000 || ttlCnvrtdCntrctVal <= 10000000) {
+													conditionFlag = "Condition 4";
+												} else if (ttlCnvrtdCntrctVal > 10000000 || ttlCnvrtdCntrctVal <= 25000000) {
+													conditionFlag = "Condition 5";
+												} else if (ttlCnvrtdCntrctVal > 25000000 || ttlCnvrtdCntrctVal <= 75000000) {
+													conditionFlag = "Condition 6";
+												} else if (ttlCnvrtdCntrctVal > 75000000) {
+													conditionFlag = "Condition 7";
+												}
+												if (val.Condition == conditionFlag) {
+													lbl_1 = val.Signatory1;
+													lbl_2 = val.Signatory2;
+												}
+											}
+											if (val.Key == "Key 4") {
+												if (ttlCnvrtdCntrctVal <= 200000) {
+													conditionFlag = "Condition 2";
+												} else if (ttlCnvrtdCntrctVal >= 5000000 || ttlCnvrtdCntrctVal <= 10000000) {
+													conditionFlag = "Condition 3";
+												} else if (ttlCnvrtdCntrctVal > 10000000 || ttlCnvrtdCntrctVal <= 25000000) {
+													conditionFlag = "Condition 4";
+												} else if (ttlCnvrtdCntrctVal > 25000000 || ttlCnvrtdCntrctVal <= 75000000) {
+													conditionFlag = "Condition 5";
+												} else if (ttlCnvrtdCntrctVal > 25000000 || ttlCnvrtdCntrctVal <= 75000000) {
+													conditionFlag = "Condition 6";
+												} else if (ttlCnvrtdCntrctVal > 75000000) {
+													conditionFlag = "Condition 7";
+												}
+												if (val.Condition == conditionFlag) {
+													lbl_1 = val.Signatory1;
+													lbl_2 = val.Signatory2;
+												}
+											}
+											if (val.Key == "Key 5") {
+												if (ttlCnvrtdCntrctVal <= 25000) {
+													conditionFlag = "Condition 3";
+												} else if (ttlCnvrtdCntrctVal > 25000 || ttlCnvrtdCntrctVal <= 150000) {
+													conditionFlag = "Condition 4";
+												} else if (ttlCnvrtdCntrctVal > 150000 || ttlCnvrtdCntrctVal <= 500000) {
+													conditionFlag = "Condition 5";
+												} else if (ttlCnvrtdCntrctVal > 500000 || ttlCnvrtdCntrctVal <= 10000000) {
+													conditionFlag = "Condition 6";
+												} else if (ttlCnvrtdCntrctVal > 10000000) {
+													conditionFlag = "Condition 7";
+												}
+												if (val.Condition == conditionFlag) {
+													lbl_1 = val.Signatory1;
+													lbl_2 = val.Signatory2;
+												}
+											}
+											if (val.Key == "Key 6") {
+												if (ttlCnvrtdCntrctVal > 3181.23 || ttlCnvrtdCntrctVal <= 9543.70) {
+													conditionFlag = "Condition 4";
+												} else if (ttlCnvrtdCntrctVal > 9543.70 || ttlCnvrtdCntrctVal <= 31810.73) {
+													conditionFlag = "Condition 5";
+												} else if (ttlCnvrtdCntrctVal > 31810.73 || ttlCnvrtdCntrctVal <= 636100.00) {
+													conditionFlag = "Condition 6";
+												}
+												if (val.Condition == conditionFlag) {
+													lbl_1 = val.Signatory1;
+													lbl_2 = val.Signatory2;
+												}
+											}
+											if (val.Key == "Key 7") {
+												if (ttlCnvrtdCntrctVal <= 1271.90) {
+													conditionFlag = "Condition 2";
+												} else if (ttlCnvrtdCntrctVal > 1271.90 || ttlCnvrtdCntrctVal <= 3181.23) {
+													conditionFlag = "Condition 3";
+												} else if (ttlCnvrtdCntrctVal > 6359.87 || ttlCnvrtdCntrctVal <= 480170.38) {
+													conditionFlag = "Condition 4";
+												} else if (ttlCnvrtdCntrctVal > 480170.38 || ttlCnvrtdCntrctVal <= 63605142.40) {
+													conditionFlag = "Condition 5";
+												} else if (ttlCnvrtdCntrctVal > 63605142.40) {
+													conditionFlag = "Condition 6";
+												}
+												if (val.Condition == conditionFlag) {
+													lbl_1 = val.Signatory1;
+													lbl_2 = val.Signatory2;
+												}
+											}
+											if (val.Key == "Key 8") {
+												if (ttlCnvrtdCntrctVal <= 953982.90) {
+													conditionFlag = "Condition 4";
+												} else if (ttlCnvrtdCntrctVal > 953982.90 || ttlCnvrtdCntrctVal <= 954058.18) {
+													conditionFlag = "Condition 5";
+												} else if (ttlCnvrtdCntrctVal > 954058.18 || ttlCnvrtdCntrctVal <= 63605142.40) {
+													conditionFlag = "Condition 6";
+												}
+												if (val.Condition == conditionFlag) {
+													lbl_1 = val.Signatory1;
+													lbl_2 = val.Signatory2;
+												}
+											}
+											if (val.Key == "Key 9") {
+												if (ttlCnvrtdCntrctVal <= 23849.06) {
+													conditionFlag = "Condition 4";
+												} else if (ttlCnvrtdCntrctVal > 23849.06 || ttlCnvrtdCntrctVal < 144027.80) {
+													conditionFlag = "Condition 5";
+												} else if (ttlCnvrtdCntrctVal >= 144027.80) {
+													conditionFlag = "Condition 6";
+												}
+												if (val.Condition == conditionFlag) {
+													lbl_1 = val.Signatory1;
+													lbl_2 = val.Signatory2;
+												}
+											}
+											if (val.Key == "Key 10") {
+												if (ttlCnvrtdCntrctVal <= 23848.12) {
+													conditionFlag = "Condition 1";
+												} else if (ttlCnvrtdCntrctVal > 23848.12 || ttlCnvrtdCntrctVal <= 143071.91) {
+													conditionFlag = "Condition 2";
+												} else if (ttlCnvrtdCntrctVal > 143071.91 || ttlCnvrtdCntrctVal <= 476906.37) {
+													conditionFlag = "Condition 3";
+												} else if (ttlCnvrtdCntrctVal >= 476906.37 || ttlCnvrtdCntrctVal <= 9537278.01) {
+													conditionFlag = "Condition 4";
+												} else if (ttlCnvrtdCntrctVal > 9537278.01 || ttlCnvrtdCntrctVal <= 47694375) {
+													conditionFlag = "Condition 5";
+												} else if (ttlCnvrtdCntrctVal > 47694375) {
+													conditionFlag = "Condition 6";
+												}
+												if (val.Condition == conditionFlag) {
+													lbl_1 = val.Signatory1;
+													lbl_2 = val.Signatory2;
+												}
+											}
+											if (val.Key == "Key 11") {
+												if (ttlCnvrtdCntrctVal <= 635919.52) {
+													conditionFlag = "Condition 3";
+												} else if (ttlCnvrtdCntrctVal > 635919.52 || ttlCnvrtdCntrctVal <= 3179500.00) {
+													conditionFlag = "Condition 4";
+												} else if (ttlCnvrtdCntrctVal > 3179500.00 || ttlCnvrtdCntrctVal <= 63590000) {
+													conditionFlag = "Condition 5";
+												} else if (ttlCnvrtdCntrctVal > 63590000) {
+													conditionFlag = "Condition 6";
+												}
+												if (val.Condition == conditionFlag) {
+													lbl_1 = val.Signatory1;
+													lbl_2 = val.Signatory2;
+												}
+											}
+											if (val.Key == "Key 12") {
+												if (ttlCnvrtdCntrctVal <= 158991.25) {
+													conditionFlag = "Condition 2";
+												} else if (ttlCnvrtdCntrctVal > 158991.25 || ttlCnvrtdCntrctVal <= 3179505.56) {
+													conditionFlag = "Condition 3";
+												} else if (ttlCnvrtdCntrctVal > 3179505.56 || ttlCnvrtdCntrctVal <= 480105.34) {
+													conditionFlag = "Condition 4";
+												} else if (ttlCnvrtdCntrctVal >= 480105.34 || ttlCnvrtdCntrctVal <= 63590000) {
+													conditionFlag = "Condition 5";
+												} else if (ttlCnvrtdCntrctVal >= 63590000) {
+													conditionFlag = "Condition 6";
+												}
+												if (val.Condition == conditionFlag) {
+													lbl_1 = val.Signatory1;
+													lbl_2 = val.Signatory2;
+												}
+											}
+
+										});
+										if (alertFlag == true) {
+											alert("Please enter value greater than '" + limitVal + " Euro' ");
+										}
+										$("#approver1").css('display', 'block').find('label').html(lbl_1 + "<a class='my-tool-tip' data-toggle='tooltip' data-placement='left' title='Required Field'><i class='fa fa-circle'></i></a>");
+										$("#approver2").css('display', 'block').find('label').html(lbl_2 + "<a class='my-tool-tip' data-toggle='tooltip' data-placement='left' title='Required Field'><i class='fa fa-circle'></i></a>");
+
+									}
+								}).fail(function (data) {
+									console.log(data.message)
+								})
+
+							} else {
+								alert('To get the appovers below fields cannot be blank. \n Total Contract Value \n Currency');
+							}
+
+
+							//var ApprvrLbl1=fnGetApproversBasedOnAmount(data.d.results[0].Signature1,ttlCnvrtdCntrctVal,"Signatory1");
+							//var ApprvrLbl2=fnGetApproversBasedOnAmount(data.d.results[0].Signature2,ttlCnvrtdCntrctVal,"Signatory2");
+						} else {
+
+							$("#approver1").css('display', 'block').find('label').html(data.d.results[0].Signature1 + "<a class='my-tool-tip' data-toggle='tooltip' data-placement='left' title='Required Field'><i class='fa fa-circle'></i></a>");
+							$("#approver2").css('display', 'block').find('label').html(data.d.results[0].Signature2 + "<a class='my-tool-tip' data-toggle='tooltip' data-placement='left' title='Required Field'><i class='fa fa-circle'></i></a>");
+						}
+
+						// if (ApprvrLbl1.indexOf('Key') > -1 && ApprvrLbl2.indexOf('Key') > -1) {
+
+						// 	var enpointUrl1 = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/getbytitle('Currency')/items";
+						// 	var currencySelected = $("select[title='Currency'] option:selected").text();
+						// 	var totalCntrctValue = $("input[title='Total Contract Value']").val();
+
+						// 	if (totalCntrctValue != '' && currencySelected != "(None)") {
+						// 		fnGetData(enpointUrl1).done(function (data) {
+						// 			$.each(data.d.results, function (i, val) {
+						// 				if (currencySelected == val.Title) {
+
+						// 					ttlCnvrtdCntrctVal = parseInt(totalCntrctValue) * val.in_x0020_Euros;
+						// 				}
+						// 			});
+						// 		}).fail(function (data) {
+						// 			console.log(data.message)
+						// 		})
+
+
+						// 		var retriveKeyUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/getbytitle('Key-Value Approval Levels')/items";
+
+						// 		fnGetData(retriveKeyUrl).done(function (data) {
+						// 			if (data.d.results.length > 0) {
+						// 				$.each(data.d.results, function (i, val) {
+						// 					var amountlimit = val.TotalContractLimit;
+						// 					var lowerLimit = '';
+						// 					var upperLimit = '';
+
+						// 					var amountSplit = amountlimit.split('-');
+						// 					var lowerLimit = amountSplit[0].trim();
+						// 					var upperLimit = amountSplit[1].trim();
+
+						// 					if (ttlCnvrtdCntrctVal >= lowerLimit) {
+						// 						if (upperLimit != "Max") {
+						// 							if (ttlCnvrtdCntrctVal <= upperLimit)
+						// 								alert('Value is in between ' + lowerLimit + ' and ' + upperLimit);
+						// 							ApprvrLbl1 = val.Signatory1;
+						// 							ApprvrLbl2 = val.Signatory2;
+						// 						} else {
+						// 							if (ttlCnvrtdCntrctVal > lowerLimit) {
+						// 								//alert('Value is greater that upperlimit')
+						// 								ApprvrLbl1 = val.Signatory1;
+						// 								ApprvrLbl2 = val.Signatory2;
+
+						// 							}
+						// 						}
+						// 					}
+						// 				});
+						// 				$("#approver1").css('display', 'block').find('label').html(ApprvrLbl1 + "<a class='my-tool-tip' data-toggle='tooltip' data-placement='left' title='Required Field'><i class='fa fa-circle'></i></a>");
+						// 				$("#approver2").css('display', 'block').find('label').html(ApprvrLbl2 + "<a class='my-tool-tip' data-toggle='tooltip' data-placement='left' title='Required Field'><i class='fa fa-circle'></i></a>");
+
+						// 			}
+						// 		}).fail(function (data) {
+						// 			console.log(data.message)
+						// 		})
+
+						// 	} else {
+						// 		alert('To get the appovers below fields cannot be blank. \n Total Contract Value \n Currency');
+						// 	}
+
+
+						// 	//var ApprvrLbl1=fnGetApproversBasedOnAmount(data.d.results[0].Signature1,ttlCnvrtdCntrctVal,"Signatory1");
+						// 	//var ApprvrLbl2=fnGetApproversBasedOnAmount(data.d.results[0].Signature2,ttlCnvrtdCntrctVal,"Signatory2");
+						// } else {
+
+						// 	$("#approver1").css('display', 'block').find('label').html(data.d.results[0].Signature1 + "<a class='my-tool-tip' data-toggle='tooltip' data-placement='left' title='Required Field'><i class='fa fa-circle'></i></a>");
+						// 	$("#approver2").css('display', 'block').find('label').html(data.d.results[0].Signature2 + "<a class='my-tool-tip' data-toggle='tooltip' data-placement='left' title='Required Field'><i class='fa fa-circle'></i></a>");
+						// }
+					}
+				}).fail(function () {
+					console.log('Error found in fnbindSubjects')
+				})
+				//Other Subject
+			} else {
+				$("#OtherSubject").hide();
+				$("input[title='OtherSubject']").val('');
+
+				if (selectedSubject == "Other Subject") {
+					$("#appr1lbl").show();
+					$("#appr2lbl").show();
+					$("#approver1").css('display', 'block');
+					$("#approver2").css('display', 'block');
+					$("#OtherSubject").show();
+				}
+			}
+
+			/*else if(selectedSubject=="Level 5 (Production and Marketing and Sales) and Level 6 (Marketing and Sales)"){
+				$("#approver1").css('display','block').find('label').html("E4");
+				$("#approver2").css('display','block').find('label').html("Human Resources Business Partner (E4/E5)");
+			}
+
+		
+			//var enpointUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/getbytitle('Subject')/items?$select=Title,Category/Title&$expand=Category&$filter=Category/Title eq '"+selectedCategory+"'";
+			/*$("#subject option").remove();
+			$("#subject").append("<option val=(none)>(none)</option>");
+		
+
+			//https://conf.uat.sp.wp.corpintra.net/sites/06990/_api/web/lists/getbytitle('Subject')/items?$select=Title,Category/Title&$expand=Category&$filter=Category/Title eq 'Employment Contracts / Terminations / ER Notices'
+			        GetData(enpointUrl).done(function (data) {
+			        if(data.d.results.length>0){
+					        $.each(data.d.results,function(i,v){
+					          $("#subject").append("<option val='"+v.Title+"' >"+v.Title+"</option>");
+					        })
+			        	}
+			        }).fail(function () {
+			            console.log('Error found in fnbindSubjects')
+			        })*/
+		});
+	} catch (ex) {
+		console.log(ex)
+	}
+}
+
+
+fnSetCurrentnextApprovers = function () {
+	var currentApprvUnit = '';
+	var nextApprvUnits = '';
+	var listOfUnits = $("#listOfUnits option:selected");
+	if (listOfUnits.length != 0) {
+		//var units=listOfUnits.split(';');
+		var j = 0;
+		for (var i = 0; i < listOfUnits.length; i++) {
+			if (listOfUnits[i].value != '') {
+				if (i == 0) {
+					currentApprvUnit = listOfUnits[i].value;
+					j++;
+				} else {
+					nextApprvUnits += listOfUnits[i].value;
+
+					if (j < listOfUnits.length) {
+						nextApprvUnits += ';'
+					}
+				}
+			}
+		}
+
+
+		//$("input[title='CurrentApprovalListOfUnit']").val(currentApprvUnit);
+		//$("input[title='NextApproverUnit']").val(nextApprvUnits)
+
+	}
+
+}
+
+fnRemoveValidation = function () {
+	$("input[title='Contract Name']").on('keyup', function () {
+		if ($(this).val().trim() != '')
+			$(this).css('border-color', 'rgb(211,211,211)');
+		else
+			$(this).css('border-color', 'red');
+
+	});
+
+	$("select[title='Currency']").on('change', function () {
+		if ($(this).val() != '0')
+			$(this).css('border-color', 'rgb(211,211,211)');
+
+	})
+
+	$("input[title='Total Contract Value']").on('keyup', function () {
+		if ($(this).val().trim() != '')
+			$(this).css('border-color', 'rgb(211,211,211)');
+	});
+
+	$("input[id='todate']").on('focusout', function () {
+		if ($(this).val != "")
+			$(this).css('border-color', 'rgb(211,211,211)');
+
+	});
+
+	$("input[id='fromdate']").on('focusout', function () {
+		if ($(this).val != "")
+			$(this).css('border-color', 'rgb(211,211,211)');
+
+	});
+
+	$("select[title='BusinessUnit']").on('change', function () {
+		if ($(this).val() != '0')
+			$(this).css('border-color', 'rgb(211,211,211)');
+
+	})
+
+	$("select[title='ContractParty']").on('change', function () {
+		if ($(this).val() != '0')
+			$(this).css('border-color', 'rgb(211,211,211)');
+
+	})
+
+
+	$("select[id='contractType']").on('change', function () {
+		if ($(this).val() != '(none)')
+			$(this).css('border-color', 'rgb(211,211,211)');
+
+	})
+
+	$("select[id='subject']").on('change', function () {
+		if ($(this).val() != '(none)')
+			$(this).css('border-color', 'rgb(211,211,211)');
+
+	})
+
+	$("select[id='listofunits']").on('change', function () {
+		if ($(this).val() != '(none)')
+			$(this).css('border-color', 'rgb(211,211,211)');
+
+	})
+
+	/*$("$('#peoplepicker_TopSpan_HiddenInput').val()").on('keyup',function(){
+		if($(this).val()!='')
+			$(this).css('border-color', 'rgb(211,211,211)');
+				
+	})
+	$("$('#peoplepicker1_TopSpan_HiddenInput').val())").on('keyup',function(){
+		if($(this).val()!='')
+			$(this).css('border-color', 'rgb(211,211,211)');
+				
+	})*/
+
+
+
+	$('button[class="multiselect dropdown-toggle btn btn-default"]').on('click', function () {
+		if ($("#listOfUnits option:selected").length > 0) {
+			$(this).css('border-color', 'rgb(211,211,211)');
+		}
+	})
+
+	$(".ms-usereditor div").bind('input propertychange', function () {
+		alert("Onchange event");
+	});
+
+
+	/*
+		var ContractParty= $('select[title="ContractParty"] option:selected').val();
+
+    //ContractParty
+    var businessUnit=$('select[title="BusinessUnit"] option:selected').val();
+    var cntrctType = $('select[id="contractType"] option:selected').val();
+    var todate=$("#todate").val();
+    var fromdate=$("#fromdate").val();
+
+    var subject=$("#subject option:selected").val();
+    var listOfUnits=$("#listOfUnits option:selected");
+
+	*/
+	//$("#peoplepicker_TopSpan_HiddenInput").val()
+
+}
+
+allowNumericOnly = function () {
+	$('input[title="Total Contract Value"]').bind('keypress', function (event) {
+		var regex = new RegExp("^[0-9]+$");
+		var key = String.fromCharCode(!event.charCode ? event.which : event.charCode);
+		if (!regex.test(key)) {
+			event.preventDefault();
+			alert('This field accepts numbers only');
+			/*swal(
+			  'Good job!',
+			  'You clicked the button!',
+			  'success'
+			)*/
+			return false;
+		}
+	});
+}
+
+
+fnGetApproversBasedOnAmount = function (keyValue, TtlCntrctAmount, Signatory) {
+	try {
+		var resultUser = '';
+		if (keyValue != null && keyValue != undefined) {
+			switch (keyValue) {
+				case "Key 1":
+					{
+						if (TtlCntrctAmount >= 1 && TtlCntrctAmount <= 5000) {
+							if (Signatory == "Signatory1")
+								resultUser = "E5";
+							else(Signatory == "Signatory2")
+							resultUser = "E6";
+
+							return resultUser;
+							//break;
+						} else if (TtlCntrctAmount > 5000 && TtlCntrctAmount <= 25000) {
+
+						}
+					}
+			}
+		}
+	} catch (ex) {
+		console.log(ex.message);
+	}
+}
+
+updateFeedbackData = function (action) {
+	var dt = new Date();
+	var dformat = (dt.getMonth() + 1) + '/' + dt.getDate() + '/' + dt.getFullYear();
+	var itemId = currentItemData[0].ID;
+	var feedbacklistitemId = '';
+	var oldhistory = '';
+	var fullHistory = '';
+	var url = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/GetByTitle('ContractsFeedback')/items?$filter=Title eq '" + itemId + "'";
+	var itemObj = currentItemData[0];
+
+	fnGetData(url).done(function (item) {
+		console.log(item);
+		feedbacklistitemId += item.d.results[0].ID;
+		oldhistory = item.d.results[0].Feedback == null ? '' : item.d.results[0].Feedback;
+	}).fail(function (error) {
+		console.log(JSON.stringify(error));
+	})
+
+	var currentHistory = action + ';' + loggedInUser + ';' + dformat + ';' + $("#comment").val();
+
+	if (oldhistory != '' && oldhistory != null) {
+		fullHistory = oldhistory + '|' + currentHistory;
+	} else {
+		fullHistory = currentHistory;
+	}
+
+
+	var data = {
+		__metadata: {
+			'type': 'SP.Data.ContractsFeedbackListItem'
+		},
+		Feedback: fullHistory
+	}
+
+	updateListItem(feedbacklistitemId, 'ContractsFeedback', data).done(function (d) {
+		console.log('Item updated successfully in ContractsFeedback list')
+	}).fail(function (error) {
+		alert(JSON.stringify(error));
+	})
+
+}
+
+
+updateListItem = function (itemId, listName, data) {
+	return $.ajax({
+		url: _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/GetByTitle('" + listName + "')/items('" + itemId + "')",
+		type: "POST",
+		headers: {
+			"accept": "application/json;odata=verbose",
+			"X-RequestDigest": $("#__REQUESTDIGEST").val(),
+			"content-Type": "application/json;odata=verbose",
+			"X-HTTP-Method": "MERGE",
+			"IF-MATCH": "*"
+		},
+		data: JSON.stringify(data)
+	});
+}
