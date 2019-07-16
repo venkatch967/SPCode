@@ -1,0 +1,104 @@
+<script src="//code.jquery.com/jquery-1.10.1.min.js"></script>
+<style type="text/css">
+    .ms-formtable {
+        display: none;
+    }
+</style>
+
+<script type="text/javascript">
+    $(document).ready(function () { //loop through all the spans in the custom layout 
+        $("span.hillbillyForm").each(function () {
+            //get the display name from the custom layout 
+            displayName = $(this).attr("data-displayName");
+            displayName = displayName.replace(/&(?!amp;)/g, '&amp;');
+            elem = $(this);
+            //find the corresponding field from the default form and move it //into the custom layout 
+            $("table.ms-formtable td").each(function () {
+                if (this.innerHTML.indexOf('FieldName="' + displayName + '"') != -1) {
+                    $(this).contents().appendTo(elem);
+                }
+            });
+        });
+    });
+</script>
+
+<body>
+
+//This code is to change default attachment.
+<div>
+            <div id="attachmentsOnClient">
+                <label>Attach Files</label>
+                <span dir="ltr">
+                    <input class="customupload" type="file" name="fileupload0" id="onetidIOFile" size="56" title="Name" />
+                </span>
+                <span class="hillbillyForm" data-displayname="Attachments"></span>
+                <span class="attachmentDisplay">
+                    No attachments
+                </span>
+            </div>
+            <div>
+                <input id="attachOKbutton" type="BUTTON" onclick='OkAttach()' value="Upload" class="btn btn-default" />
+                <span id="idSpace" />
+            </div>
+        </div>
+        
+        
+// Hillybilly html
+
+<h1>New Issueh1>
+<table cellpadding="5" cellspacing="5" bgcolor="#FFFFCC" >
+    <tr >
+        <td>
+            <b>Title:b><br>
+            <span class="hillbillyForm" data-displayName="Title">span>
+        td>
+        <td>
+            <b>Issue Status:b><br>
+            <span class="hillbillyForm" data-displayName="Issue Status">span>
+        td>
+    tr>
+    <tr >
+        <td>
+            <b>Assigned To:b><br>
+            <span class="hillbillyForm" data-displayName="Assigned To">span>
+        td>
+        <td>
+            <b>Priority:b><br>
+            <span class="hillbillyForm" data-displayName="Priority">span>
+        td>
+    tr>
+    <tr >
+        <td>
+            <b>Description:b><br>
+            <span class="hillbillyForm" data-displayName="Description">span>
+        td>
+        <td valign="top">
+            <b>Category:b><br>
+            <span class="hillbillyForm" data-displayName="Category">span>
+            <b>Alert Me:b><br>
+            <span class="hillbillyForm" data-displayName="Alert Me">span>
+            <b>Blame:b><br>
+            <span class="hillbillyForm" data-displayName="Blame">span>
+        td>
+    tr>
+    <tr >
+        <td>
+            <b>Related Issues:b><br>
+            <span class="hillbillyForm" data-displayName="Related Issues">span>
+        td>
+        <td valign="top">
+            <b>Due Date:b><br>
+            <span class="hillbillyForm" data-displayName="Due Date">span>
+        td>
+    tr>
+    <tr >
+        <td>
+            <b>Comments:b><br>
+            <span class="hillbillyForm" data-displayName="Comments">span>
+        td>
+        <td valign="top">
+        td>
+    tr>
+table>
+
+
