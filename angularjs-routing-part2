@@ -1,0 +1,73 @@
+<html>
+
+<body>
+
+	<head>
+		<script src="../SiteAssets/Views/js/Board.js"></script>
+		<style type="text/css">
+			#contracts-table {
+				width: 80%;
+			}
+
+			#contracts-table th {
+				border: 1px solid grey;
+				border-collapse: collapse;
+				padding: 5px;
+
+			}
+
+			#contracts-table td {
+				border: 1px solid grey;
+				border-collapse: collapse;
+				padding: 5px;
+
+			}
+
+			#contracts-tabletr:hover {
+				background-color: #d3d3d3;
+			}
+
+			.btn.btn-primary:visited {
+				color: #fff !important;
+				text-decoration: none;
+			}
+		</style>
+	</head>
+	<!--<div id="App1" ng-app="allCntrct" ng-controller="controller1">    
+        <h1>First List Items</h1>    
+        <div ng-repeat="item in items">    
+            <p>{{item.Title}}</p>    
+        </div>    
+    </div>-->
+
+
+	<table id="contracts-table" style="margin-top:5%">
+		<tr>
+			<th>Contract ID</th>
+			<th>Status</th>
+			<th>Contract Name</th>
+			<th>Contract Owner</th>
+			<th>Total Contract Value</th>
+			<th>Effective From</th>
+			<th>Effective To</th>
+			<th>Action</th>
+		</tr>
+		<tr ng-repeat="x in draftContracts">
+			<td>{{ x.Title }}</td>
+			<td>{{ x.ContractStatus }}</td>
+			<td>{{ x.ContractName }}</td>
+			<td>{{ x.Author.Title}}</td>
+			<td>{{ x.TotalContractValue }}({{ x.Currency.Title}})</td>
+			<td>{{ x.Effectiveperiodfrom.split('T')[0]}}</td>
+			<td>{{ x.EffectivePeriodTo.split('T')[0]}}</td>
+			<td><a href="#" target="_blank" ng-show="x.Author.Title==loggedInUser" ng-href="/sites/06966/Lists/Contracts/ApproveContractRequest.aspx?ID={{x.ID}}"
+				  class="btn btn-primary">View</a></td>
+		</tr>
+		<tr>
+			<td colspan="7" ng-show="!draftContracts.length">No Contracts Found</td>
+		</tr>
+	</table>
+
+</body>
+
+</html>
